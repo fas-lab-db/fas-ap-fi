@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>Fas Food · Shop Portal & Finance Admin</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #f5f7fb;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+        }
+        .shop-container { max-width: 500px; margin: 2rem auto; padding: 0 1rem; }
+        .shop-card { background: white; border-radius: 2rem; padding: 2rem; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        .shop-header { text-align: center; margin-bottom: 2rem; }
+        .shop-header h2 { color: #f0572d; font-weight: 700; }
+        .shop-info-display { background: linear-gradient(135deg, #f0572d, #ff9248); color: white; border-radius: 1.5rem; padding: 1.5rem; margin-bottom: 1rem; }
+        .bank-details-box { background: #f8fafc; border-radius: 1rem; padding: 1rem; border: 1px solid #e2e8f0; margin-top: 1rem; }
+        .btn-primary-fas { background: linear-gradient(125deg, #f0572d, #ff9248); border: none; transition: 0.2s; }
+        .btn-primary-fas:hover { background: #1e1e2f; }
+        .form-control:focus { border-color: #f0572d; box-shadow: 0 0 0 0.2rem rgba(240,87,45,0.25); }
+        
+        .finance-admin-container { display: none; max-width: 1400px; margin: 0 auto; padding: 1rem; }
+        .finance-admin-container.active { display: block; }
+        .shop-portal-container { display: block; }
+        .shop-portal-container.hide { display: none; }
+        
+        .finance-header { background: linear-gradient(135deg, #1e1e2f, #2d2d44); color: white; padding: 1.5rem; border-radius: 1.5rem; margin-bottom: 1.5rem; }
+        .stat-card { background: white; border-radius: 1rem; padding: 1.2rem; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid #e0e0e0; }
+        .stat-card h3 { font-size: 2rem; font-weight: 800; margin-bottom: 0; color: #f0572d; }
+        .data-table { background: white; border-radius: 1rem; overflow-x: auto; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .data-table table { width: 100%; min-width: 900px; }
+        .data-table th { background: #f8f9fc; padding: 1rem; font-weight: 600; border-bottom: 2px solid #e0e0e0; }
+        .data-table td { padding: 0.8rem 1rem; vertical-align: middle; border-bottom: 1px solid #f0f0f0; }
+        .status-badge { padding: 0.25rem 0.75rem; border-radius: 50px; font-size: 0.75rem; font-weight: 600; display: inline-block; }
+        .status-paid { background: #d1fae5; color: #065f46; }
+        .status-paynext { background: #dbeafe; color: #1e40af; }
+        .status-overdue { background: #fee2e2; color: #991b1b; }
+        .btn-fas { background: linear-gradient(125deg, #f0572d, #ff9248); border: none; color: white; font-weight: 600; padding: 0.4rem 1rem; border-radius: 50px; font-size: 0.8rem; }
+        .btn-fas-sm { background: linear-gradient(125deg, #f0572d, #ff9248); border: none; color: white; font-weight: 600; padding: 0.3rem 0.8rem; border-radius: 50px; font-size: 0.75rem; margin: 0.2rem; }
+        .btn-outline-fas { border: 1px solid #f0572d; background: white; color: #f0572d; border-radius: 50px; padding: 0.3rem 0.8rem; font-size: 0.75rem; margin: 0.2rem; }
+        .modal-custom .modal-content { border-radius: 1.5rem; }
+        .advert-item { background: #f8f9fc; border-radius: 0.5rem; padding: 0.5rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
+        .loading-spinner { display: inline-block; width: 1rem; height: 1rem; border: 2px solid #f3f3f3; border-top: 2px solid #f0572d; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .login-box { max-width: 400px; margin: 3rem auto; background: white; border-radius: 1.5rem; padding: 2rem; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        @media (max-width: 768px) { .data-table { font-size: 0.8rem; } .data-table td, .data-table th { padding: 0.5rem; } }
+    </style>
+</head>
+<body>
+
+<div id="shopPortal" class="shop-portal-container">
+    <div class="shop-container">
+        <div class="shop-card">
+            <div class="shop-header">
+                <h2><i class="fas fa-store"></i> Shop Portal</h2>
+                <p class="text-muted">Enter your Shop ID to view your status</p>
+            </div>
+            <div id="shopLoginForm">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Shop ID</label>
+                    <input type="text" id="shopIdInput" class="form-control form-control-lg" placeholder="e.g., ABC123" style="border-radius: 50px;">
+                </div>
+                <button class="btn btn-primary-fas w-100 py-2" onclick="viewShopStatus()" style=" color: white; border-radius: 50px; font-weight: 700;"><i class="fas fa-search"></i> View My Shop Status</button>
+            </div>
+            <div id="shopDashboard" style="display: none;">
+                <button hidden class="btn btn-outline-secondary btn-sm mb-3" onclick="backToShopLogin()"><i class="fas fa-arrow-left"></i> Back</button>
+                <div id="shopDashboardContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="financeLoginContainer" style="display: none;">
+    <div class="login-box">
+        <div class="text-center mb-4">
+            <i class="fas fa-chart-line fa-3x" style="color: #f0572d;"></i>
+            <h2 class="mt-2">Finance Admin Login</h2>
+            <p class="text-muted">Enter your credentials to access the dashboard</p>
+        </div>
+        <div class="mb-3">
+            <label class="form-label fw-bold">Admin ID</label>
+            <input type="text" id="financeAdminId" class="form-control form-control-lg" placeholder="Enter Admin ID">
+        </div>
+        <div class="mb-3">
+            <label class="form-label fw-bold">Password</label>
+            <input type="password" id="financePassword" class="form-control form-control-lg" placeholder="Enter Password">
+        </div>
+        <button class="btn btn-primary-fas w-100 py-2" onclick="loginFinanceAdmin()" style="border-radius: 50px; font-weight: 700;"><i class="fas fa-sign-in-alt"></i> Login</button>
+        <div class="text-center mt-3 small text-muted">Admin ID: FIN2024 | Password: FIN2024</div>
+        <div id="loginError" class="text-danger text-center mt-2 small" style="display: none;"></div>
+    </div>
+</div>
+
+<div id="financeAdmin" class="finance-admin-container">
+    <div class="finance-header">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h2><i class="fas fa-chart-line"></i> Finance Admin Dashboard</h2>
+                <p class="mb-0 opacity-75">Manage shops, payments, invoices and receipts</p>
+            </div>
+            <button class="btn btn-light" onclick="logoutFinance()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </div>
+    </div>
+    <div id="financeDashboardContent"><div class="text-center py-5"><div class="loading-spinner"></div> Loading shops data...</div></div>
+</div>
+
+<script>
+    const SUPABASE_URL = 'https://vcxvbcmonblssuidxorn.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjeHZiY21vbmJsc3N1aWR4b3JuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1OTc4MDQsImV4cCI6MjA5MDE3MzgwNH0.ry-gFXnoUKqmb3I8FieRNXjMtFu3ub4tHDRVLk_9xMM';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    const BASE_MENU_PRICE = 150;
+    const EXTRA_ITEM_PRICE = 15;
+    const TILL_PRICE = 50;
+    const EXTRA_ADDON_MONTHLY_FEE = 10;
+    const FREE_EXTRA_LIMIT = 3;
+        
+    function calculateShopMonthlyAmount(shop) {
+        let menuFee = shop.menu_item_count <= 10 ? BASE_MENU_PRICE : BASE_MENU_PRICE + (shop.menu_item_count - 10) * EXTRA_ITEM_PRICE;
+        let tillFee = shop.till_enabled ? TILL_PRICE : 0;
+        let extraFee = shop.extra_addons_count > FREE_EXTRA_LIMIT ? (shop.extra_addons_count - FREE_EXTRA_LIMIT) * EXTRA_ADDON_MONTHLY_FEE : 0;
+        let advertFee = shop.adverts ? shop.adverts.reduce((sum, a) => sum + (a.amount || 0), 0) : 0;
+        let penalty = shop.penalty_amount || 0;
+        return menuFee + tillFee + extraFee + advertFee + penalty;
+    }
+    
+    function calculateDueDate(registerDate) {
+        const regDate = new Date(registerDate);
+        let dueDate = new Date(regDate.getFullYear(), regDate.getMonth() + 1, 1);
+        if(dueDate.getMonth() === regDate.getMonth() && dueDate.getFullYear() === regDate.getFullYear()) {
+            dueDate = new Date(regDate.getFullYear(), regDate.getMonth() + 2, 1);
+        }
+        return dueDate;
+    }
+    
+    function removeAllModals() {
+        document.querySelectorAll('.modal').forEach(modal => {
+            if (modal.classList.contains('show')) modal.classList.remove('show');
+            modal.style.display = 'none';
+        });
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+    }
+    
+    async function viewShopStatus() {
+        const shopId = document.getElementById('shopIdInput').value.trim().toUpperCase();
+        const { data: shop, error } = await supabaseClient.from('shops').select('*').eq('id', shopId).single();
+        if(error || !shop) { alert('Shop ID not found'); return; }
+        
+        const dueDate = calculateDueDate(shop.registration_date);
+        const monthlyAmount = calculateShopMonthlyAmount(shop);
+            let displayStatus;
+
+            if (shop.payment_status === 'pay_next') {
+                displayStatus = 'First Month Free';
+            } else if (shop.payment_status === 'paid') {
+                displayStatus = 'Paid ✓';
+            } else if (shop.payment_status === 'due') {
+                const today = new Date().getDate();
+
+                if (today === 1) {
+                    displayStatus = 'Due Today';
+                } else if (today <= 3) {
+                    displayStatus = 'Due (Grace Period)';
+                } else {
+                    displayStatus = '⚠️ Overdue';
+                }
+            } else if (shop.payment_status === 'overdue') {
+                displayStatus = '⚠️ Overdue';
+            } else {
+                displayStatus = 'Unknown';
+            }        
+        let bankDetailsHtml = '';
+let suspendedMessageHtml = '';
+
+if (shop.is_suspended) {
+    suspendedMessageHtml = `
+        <div class="alert alert-danger text-center mb-3" style="border-radius: 1rem;">
+            <i class="fas fa-ban fa-2x mb-2"></i>
+            <h5 class="fw-bold">Account Suspended</h5>
+            <p>Your account has been suspended due to non-payment.</p>
+            <p class="mb-0">Please contact support to reactivate your account.</p>
+            <hr>
+            <p class="mb-0 fw-bold">Reactivation Penalty: <span class="text-danger">R100</span></p>
+            <small class="text-muted">*Penalty fee applies for late payment reactivation</small>
+        </div>
+    `;
+    bankDetailsHtml = `
+        <div class="bank-details-box text-center" style="background: #fff3e0;">
+            <i class="fas fa-headset fa-2x text-warning mb-2"></i>
+            <h5>Contact Support to Reactivate</h5>
+            <p>Your bank details are hidden because your account is suspended.</p>
+            <p class="mb-0"><strong>Email:</strong> support@96studios.co.za<br><strong>Phone:</strong> 081 792 5033</p>
+        </div>
+    `;
+} else {
+    bankDetailsHtml = `
+        <div class="bank-details-box" >
+            <h5><i class="fas fa-university"></i> Bank Details</h5>
+            <p class="mb-1"><strong>Bank:</strong> Standard Bank (Current)</p>
+            <p class="mb-1"><strong>Account Name:</strong> 96 Studios (Pty) Ltd</p>
+           <p class="mb-1"><strong>Account Number:</strong> 
+    <span onclick="copyToClipboard('10214743584')" style="cursor:pointer; background:#f0f0f0; padding:2px 8px; border-radius:8px;">
+        10214743584 📋
+    </span>
+</p>
+            <p class="mb-1"><strong>Branch Code:</strong> 051001</p>
+            <p class="mb-0 mt-2"><strong>Reference:</strong> <span class="fw-bold text-danger">${shop.payment_ref}</span></p>
+        </div>
+    `;
+}
+
+document.getElementById('shopDashboardContent').innerHTML = `
+    <div class="shop-info-display">
+        <h3><i class="fas fa-store"></i> ${escapeHtml(shop.shop_name)}</h3>
+        <p class="mb-1"><strong>Shop ID:</strong> ${shop.id}</p>
+        <p class="mb-1"><strong>Payment Reference:</strong> ${shop.payment_ref}</p>
+        <p class="mb-1"><strong>Status:</strong> <span class="badge bg-light text-dark">${displayStatus}</span></p>
+        <p class="mb-1"><strong>Due Date:</strong> ${dueDate.toLocaleDateString('en-ZA')}</p>
+        <p class="mb-0 mt-2"><strong>Amount Due:</strong> <span style="font-size: 1.8rem;">R${monthlyAmount}</span></p>
+        ${shop.is_suspended ? '<p class="mt-2 text-warning"><i class="fas fa-exclamation-triangle"></i> Account Suspended - Contact Support</p>' : ''}
+    </div>
+    ${suspendedMessageHtml}
+    ${bankDetailsHtml}`;
+        document.getElementById('shopLoginForm').style.display = 'none';
+        document.getElementById('shopDashboard').style.display = 'block';
+    }
+
+    function copyToClipboard(text) {
+    navigator.clipboard.writeText(text);
+    alert("Copied: " + text);
+}
+    
+    function backToShopLogin() {
+        document.getElementById('shopLoginForm').style.display = 'block';
+        document.getElementById('shopDashboard').style.display = 'none';
+        document.getElementById('shopIdInput').value = '';
+    }
+    
+    async function loginFinanceAdmin() {
+        const adminId = document.getElementById('financeAdminId').value.trim();
+        const password = document.getElementById('financePassword').value.trim();
+        if(adminId !== 'FIN2024' || password !== 'FIN2024') {
+            document.getElementById('loginError').style.display = 'block';
+            document.getElementById('loginError').innerText = 'Invalid credentials';
+            return;
+        }
+        document.getElementById('loginError').style.display = 'none';
+        document.getElementById('financeLoginContainer').style.display = 'none';
+        document.getElementById('financeAdmin').classList.add('active');
+        await loadAllShops();
+    }
+    
+    function logoutFinance() {
+        document.getElementById('financeAdmin').classList.remove('active');
+        document.getElementById('financeLoginContainer').style.display = 'block';
+        document.getElementById('financeAdminId').value = '';
+        document.getElementById('financePassword').value = '';
+    }
+    
+    async function loadAllShops() {
+        const { data: shops, error } = await supabaseClient.from('shops').select('*').order('created_at', { ascending: false });
+        if(error) { 
+            document.getElementById('financeDashboardContent').innerHTML = `<div class="alert alert-danger">Error: ${error.message}. Please run SQL to create shops table and disable RLS.</div>`;
+            return;
+        }
+        allShopsData = shops || [];
+        renderFinanceDashboard(allShopsData);
+    }
+    
+    function renderFinanceDashboard(shops) {
+        const totalShops = shops.length;
+        const activeShops = shops.filter(s => !s.is_suspended).length;
+        const overdueShops = shops.filter(s => s.payment_status === 'overdue').length;
+        const firstMonthFree = shops.filter(s => s.payment_status === 'pay_next').length;
+
+        const order = {
+            paid: 1,
+            due: 2,
+            pay_next: 3,
+            overdue: 4
+        };
+
+        shops.sort((a, b) => (order[a.payment_status] || 5) - (order[b.payment_status] || 5));
+        
+        let html = `
+            <div class="row g-3 mb-4">
+                <div class="col-md-3"><div class="stat-card"><h3>${totalShops}</h3><p class="text-muted mb-0">Total Shops</p></div></div>
+                <div class="col-md-3"><div class="stat-card"><h3>${activeShops}</h3><p class="text-muted mb-0">Active Shops</p></div></div>
+                <div class="col-md-3"><div class="stat-card"><h3>${overdueShops}</h3><p class="text-muted mb-0">Overdue</p></div></div>
+                <div class="col-md-3"><div class="stat-card"><h3>${firstMonthFree}</h3><p class="text-muted mb-0">First Month Free</p></div></div>
+            </div>
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+            <h4><i class="fas fa-store"></i> All Shops</h4>
+
+        <div class="d-flex gap-2 flex-wrap">
+            <input type="text" id="searchInput" class="form-control" placeholder="Search ID, Ref, Name, Email" style="max-width:250px;">
+            
+            <select id="filterStatus" class="form-control">
+                <option value="">All</option>
+                <option value="paid">Paid</option>
+                <option value="due">Due</option>
+                <option value="overdue">Overdue</option>
+                <option value="pay_next">Free</option>
+            </select>
+
+            <button class="btn btn-outline-fas" onclick="applyFilters()">Filter</button>
+            <button class="btn btn-outline-fas" onclick="printOverdueShops()">Print Overdue</button>
+        </div>
+
+        <button class="btn btn-fas" onclick="showCreateShopModal()">
+            <i class="fas fa-plus"></i> Create New Shop
+        </button>
+    </div>
+
+            ${shops.length === 0 ? '<div class="text-center py-5 bg-white rounded"><i class="fas fa-store fa-4x text-muted mb-3"></i><h5>No shops found</h5><p class="text-muted">Click "Create New Shop" to add your first shop.</p></div>' : `
+            <div class="data-table">
+                <table class="table table-hover mb-0">
+                    <thead><tr><th>Shop ID</th><th>Shop Name</th><th>Contact</th><th>Menu</th><th>Till</th><th>Extras</th><th>Adverts</th><th>Monthly</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody>
+${shops.map(shop => `
+<tr style="${shop.is_suspended ? 'background-color:#ffcccc;' : ''}">
+    <td><strong>${shop.id}</strong><br><small>Ref: ${shop.payment_ref}</small>${shop.is_suspended ? '<br><span class="badge bg-danger mt-1">SUSPENDED</span>' : ''}</td>
+    <td>${escapeHtml(shop.shop_name)}</td>
+    <td>${escapeHtml(shop.owner_name)}</td>
+    <td>${escapeHtml(shop.shop_phone)}</td>
+    <td>${shop.menu_item_count}</td>
+    <td>${shop.till_enabled ? '✓' : '✗'}</td>
+    <td>${shop.extra_addons_count}</td>
+    <td>${shop.adverts ? shop.adverts.length : 0}</td>
+    <td class="fw-bold text-danger">R${calculateShopMonthlyAmount(shop)}</td>
+    <td>
+        <span class="status-badge ${
+            shop.payment_status === 'paid' ? 'status-paid' :
+            shop.payment_status === 'overdue' ? 'status-overdue' :
+            shop.payment_status === 'due' ? 'status-paynext' :
+            'status-paynext'
+        }">
+            ${
+                shop.payment_status === 'pay_next' ? 'Free' :
+                shop.payment_status === 'paid' ? 'Paid' :
+                shop.payment_status === 'due' ? 'Due' :
+                shop.payment_status === 'overdue' ? 'Overdue' :
+                'Unknown'
+            }
+        </span>
+    </td>
+    <td>
+        <button class="btn-fas-sm" onclick="editShop('${shop.id}')"><i class="fas fa-edit"></i></button>
+        <button class="btn-outline-fas" onclick="generateInvoice('${shop.id}')"><i class="fas fa-file-invoice"></i></button>
+        <button class="btn-outline-fas" onclick="markAsPaid('${shop.id}')"><i class="fas fa-receipt"></i></button>
+        <button class="btn-outline-fas" onclick="toggleSuspend('${shop.id}')"><i class="fas fa-ban"></i></button>
+    </td>
+</tr>
+`).join('')}
+</tbody>
+                </table>
+            </div>`}
+        `;
+        document.getElementById('financeDashboardContent').innerHTML = html;
+    }
+
+    function printOverdueShops() {
+    const overdue = allShopsData.filter(s => s.payment_status === 'overdue');
+
+    if (overdue.length === 0) {
+        alert('No overdue shops');
+        return;
+    }
+
+    let content = `
+        <h2>Overdue Shops</h2>
+        <table border="1" cellpadding="8" cellspacing="0" width="100%">
+            <tr>
+                <th>Shop ID</th>
+                <th>Name</th>
+                <th>Phone</th>
+            </tr>
+            ${overdue.map(s => `
+                <tr>
+                    <td>${s.id}</td>
+                    <td>${s.shop_name}</td>
+                    <td>${s.shop_phone}</td>
+                </tr>
+            `).join('')}
+        </table>
+    `;
+
+    const win = window.open('', '', 'width=800,height=600');
+    win.document.write(content);
+    win.document.close();
+    win.print();
+}
+    
+    async function showCreateShopModal() {
+        removeAllModals();
+        const modalHtml = `<div class="modal fade modal-custom" id="createShopModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Create New Shop</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body"><div class="row g-2">
+                <div class="col-md-6"><label>Shop Name *</label><input type="text" id="newShopName" class="form-control"></div>
+                <div class="col-md-6"><label>Phone *</label><input type="text" id="newShopPhone" class="form-control"></div>
+                <div class="col-md-6"><label>Email</label><input type="email" id="newShopEmail" class="form-control"></div>
+                <div class="col-12"><label>Address *</label><textarea id="newShopAddress" class="form-control" rows="2"></textarea></div>
+                <div class="col-md-6"><label>Owner Name *</label><input type="text" id="newOwnerName" class="form-control"></div>
+                <div class="col-md-6"><label>Business Type</label><select id="newBusinessType" class="form-control"><option>takeaway</option><option>restaurant</option><option>chisanyama</option></select></div>
+                <div class="col-md-4"><label>Menu Items</label><input type="number" id="newMenuCount" class="form-control" value="10" min="5" max="50"></div>
+                <div class="col-md-4"><label>Till System</label><select id="newTillEnabled" class="form-control"><option value="true">Yes (+R50)</option><option value="false">No</option></select></div>
+                <div class="col-md-4"><label>Extra Add-ons</label><input type="number" id="newExtraCount" class="form-control" value="0" min="0"></div>
+            </div></div>
+            <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-fas" onclick="createNewShop()">Create</button></div>
+        </div></div></div>`;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        new bootstrap.Modal(document.getElementById('createShopModal')).show();
+        document.getElementById('createShopModal').addEventListener('hidden.bs.modal', () => { removeAllModals(); document.getElementById('createShopModal')?.remove(); });
+    }
+    
+    async function createNewShop() {
+    const newShop = {
+        shop_name: document.getElementById('newShopName')?.value,
+        shop_phone: document.getElementById('newShopPhone')?.value,
+        shop_email: document.getElementById('newShopEmail')?.value,
+        shop_address: document.getElementById('newShopAddress')?.value,
+        owner_name: document.getElementById('newOwnerName')?.value,
+        business_type: document.getElementById('newBusinessType')?.value,
+        menu_item_count: parseInt(document.getElementById('newMenuCount')?.value || 10),
+        till_enabled: document.getElementById('newTillEnabled')?.value === 'true',
+        extra_addons_count: parseInt(document.getElementById('newExtraCount')?.value || 0),
+        adverts: [],
+        registration_date: new Date().toISOString(),
+        payment_status: "pay_next",
+        is_active: true,
+        is_suspended: false,
+        penalty_amount: 0,
+        last_payment_date: null,
+        payment_history: []
+    };
+
+    const { data, error } = await supabaseClient
+        .from('shops')
+        .insert([newShop])
+        .select()
+        .single();
+
+if (error) {
+    console.error(error);
+
+    if (error.message.includes('duplicate')) {
+        alert('System error: Duplicate ID detected. Please try again.');
+    } else {
+        alert('Failed to create shop. Please try again.');
+    }
+
+    return;
+}
+
+    alert(`Shop created! ID: ${data.id} | Ref: ${data.payment_ref}`);
+    await loadAllShops();
+}
+    
+    async function editShop(shopId) {
+        const { data: shop } = await supabaseClient.from('shops').select('*').eq('id', shopId).single();
+        if(!shop) return;
+        const editHtml = `<div class="modal fade modal-custom" id="editShopModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Edit: ${shop.shop_name}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <label>Menu Items</label><input type="number" id="editMenuCount" class="form-control mb-2" value="${shop.menu_item_count}">
+                <label>Till System</label><select id="editTillEnabled" class="form-control mb-2"><option value="true" ${shop.till_enabled ? 'selected' : ''}>Yes (+R50)</option><option value="false" ${!shop.till_enabled ? 'selected' : ''}>No</option></select>
+                <label>Extra Add-ons</label><input type="number" id="editExtraCount" class="form-control mb-2" value="${shop.extra_addons_count}">
+                <label>Penalty Amount</label><input type="number" id="editPenalty" class="form-control mb-2" value="${shop.penalty_amount || 0}">
+                <label>Payment Status</label><select id="editPaymentStatus" class="form-control">
+                    <option value="pay_next">First Month Free</option>
+                    <option value="due">Due</option>
+                    <option value="paid">Paid</option>
+                    <option value="overdue">Overdue</option>
+                </select>
+                <hr><h6>Adverts</h6><div id="advertsList">${shop.adverts?.map((a,i) => `<div class="advert-item">${a.name}: R${a.amount} <button class="btn btn-sm btn-danger" onclick="removeAdvert('${shopId}',${i})">✖</button></div>`).join('') || 'None'}</div>
+                <div class="row mt-2"><div class="col-6"><input id="advertName" placeholder="Advert name" class="form-control"></div><div class="col-4"><input id="advertAmount" placeholder="R" class="form-control"></div><div class="col-2"><button class="btn btn-fas-sm" onclick="addAdvertToShop('${shopId}')">+</button></div></div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-fas" onclick="saveShopEdit('${shopId}')">Save</button></div>
+        </div></div></div>`;
+        document.body.insertAdjacentHTML('beforeend', editHtml);
+        new bootstrap.Modal(document.getElementById('editShopModal')).show();
+        document.getElementById('editShopModal').addEventListener('hidden.bs.modal', () => { removeAllModals(); document.getElementById('editShopModal')?.remove(); });
+    }
+    
+    async function addAdvertToShop(shopId) {
+        const name = document.getElementById('advertName')?.value.trim();
+        const amount = parseFloat(document.getElementById('advertAmount')?.value);
+        if(!name || isNaN(amount)) { alert('Enter advert name and amount'); return; }
+        const { data: shop } = await supabaseClient.from('shops').select('adverts').eq('id', shopId).single();
+        const adverts = shop.adverts || [];
+        adverts.push({ name, amount });
+        await supabaseClient.from('shops').update({ adverts }).eq('id', shopId);
+        editShop(shopId);
+    }
+    
+    async function removeAdvert(shopId, index) {
+        const { data: shop } = await supabaseClient.from('shops').select('adverts').eq('id', shopId).single();
+        const adverts = shop.adverts || [];
+        adverts.splice(index, 1);
+        await supabaseClient.from('shops').update({ adverts }).eq('id', shopId);
+        editShop(shopId);
+    }
+    
+    async function saveShopEdit(shopId) {
+        await supabaseClient.from('shops').update({
+            menu_item_count: parseInt(document.getElementById('editMenuCount')?.value),
+            till_enabled: document.getElementById('editTillEnabled')?.value === 'true',
+            extra_addons_count: parseInt(document.getElementById('editExtraCount')?.value),
+            penalty_amount: parseFloat(document.getElementById('editPenalty')?.value) || 0,
+            payment_status: document.getElementById('editPaymentStatus')?.value
+        }).eq('id', shopId);
+        document.getElementById('editShopModal')?.remove();
+        removeAllModals();
+        await loadAllShops();
+    }
+    
+    async function generateInvoice(shopId) {
+        const { data: shop } = await supabaseClient.from('shops').select('*').eq('id', shopId).single();
+        if(!shop) return;
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+        const amount = calculateShopMonthlyAmount(shop);
+        const dueDate = calculateDueDate(shop.registration_date);
+        doc.setFillColor(240,87,45); doc.rect(0,0,210,45,'F');
+        doc.setTextColor(255,255,255); doc.setFontSize(24); doc.setFont('helvetica','bold'); doc.text('FASFOOD',20,28);
+        doc.setTextColor(240,87,45); doc.setFontSize(18); doc.text('TAX INVOICE',105,55,{align:'center'});
+        doc.setTextColor(0,0,0); doc.setFontSize(10);
+        doc.text(`Shop: ${shop.shop_name}`,20,80);
+        doc.text(`Shop ID: ${shop.id} | Payment Ref: ${shop.payment_ref}`,20,88);
+        doc.text(`Amount Due: R${amount}`,20,96);
+        doc.text(`Due Date: ${dueDate.toLocaleDateString('en-ZA')}`,20,104);
+        doc.text(`Bank: Standard Bank | Acc: 10214743584 | Ref: ${shop.payment_ref}`,20,120);
+        doc.save(`${shop.id}_Invoice.pdf`);
+        alert('Invoice downloaded');
+    }
+    
+    async function markAsPaid(shopId) {
+        const { data: shop } = await supabaseClient.from('shops').select('*').eq('id', shopId).single();
+        await supabaseClient.from('shops').update({ payment_status: 'paid', last_payment_date: new Date().toISOString() }).eq('id', shopId);
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+        doc.setFillColor(240,87,45); doc.rect(0,0,210,45,'F');
+        doc.setTextColor(255,255,255); doc.setFontSize(24); doc.text('FASFOOD',20,28);
+        doc.setTextColor(240,87,45); doc.setFontSize(18); doc.text('PAYMENT RECEIPT',105,55,{align:'center'});
+        doc.setTextColor(0,0,0); doc.setFontSize(10);
+        doc.text(`Shop: ${shop.shop_name}`,20,80);
+        doc.text(`Shop ID: ${shop.id} | Payment Ref: ${shop.payment_ref}`,20,88);
+        doc.text(`Amount Paid: R${calculateShopMonthlyAmount(shop)}`,20,96);
+        doc.text(`Date: ${new Date().toLocaleDateString()}`,20,104);
+        doc.text(`Status: PAID`,20,112);
+        doc.save(`${shop.id}_Receipt.pdf`);
+        alert('Receipt downloaded');
+        await loadAllShops();
+    }
+    
+async function toggleSuspend(shopId) {
+    const { data: shop } = await supabaseClient.from('shops').select('is_suspended, payment_status, penalty_amount').eq('id', shopId).single();
+    
+    if (shop.is_suspended) {
+        const newPenalty = (shop.penalty_amount || 0) + 100;
+        if (confirm(`Reactivate this shop? A penalty fee of R100 will be added. Total penalty: R${newPenalty}`)) {
+            await supabaseClient.from('shops').update({ 
+                is_suspended: false, 
+                penalty_amount: newPenalty,
+                payment_status: 'due'
+            }).eq('id', shopId);
+            alert(`Shop reactivated. Penalty fee R100 added.`);
+        } else {
+            return;
+        }
+    } else {
+        if (confirm(`Suspend this shop?`)) {
+            await supabaseClient.from('shops').update({ is_suspended: true }).eq('id', shopId);
+            alert(`Shop suspended.`);
+        } else {
+            return;
+        }
+    }
+    await loadAllShops();
+}
+    function escapeHtml(str) { if(!str) return ''; return String(str).replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
+    
+    window.viewShopStatus = viewShopStatus; window.backToShopLogin = backToShopLogin;
+    window.loginFinanceAdmin = loginFinanceAdmin; window.logoutFinance = logoutFinance;
+    window.showCreateShopModal = showCreateShopModal; window.createNewShop = createNewShop;
+    window.editShop = editShop; window.addAdvertToShop = addAdvertToShop;
+    window.removeAdvert = removeAdvert; window.saveShopEdit = saveShopEdit;
+    window.markAsPaid = markAsPaid; window.toggleSuspend = toggleSuspend;
+    window.generateInvoice = generateInvoice;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    if(urlParams.get('admin') === 'finance2024') {
+        document.getElementById('shopPortal').style.display = 'none';
+        document.getElementById('financeLoginContainer').style.display = 'block';
+    }
+
+    let allShopsData = [];
+
+function applyFilters() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const status = document.getElementById('filterStatus').value;
+
+    let filtered = allShopsData.filter(shop => {
+        const matchSearch =
+            shop.id.toLowerCase().includes(search) ||
+            shop.payment_ref.toLowerCase().includes(search) ||
+            shop.shop_name.toLowerCase().includes(search) ||
+            (shop.shop_email || '').toLowerCase().includes(search);
+
+        const matchStatus = status ? shop.payment_status === status : true;
+
+        return matchSearch && matchStatus;
+    });
+
+    renderFinanceDashboard(filtered);
+
+    //?admin=finance2024 error
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
